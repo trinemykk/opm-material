@@ -27,7 +27,8 @@
 #ifndef OPM_COMPUTE_FROM_REFERENCE_PHASE_HPP
 #define OPM_COMPUTE_FROM_REFERENCE_PHASE_HPP
 
-#include <opm/material/constraintsolvers/CompositionFromFugacities.hpp>
+//#include <opm/material/constraintsolvers/CompositionFromFugacities.hpp>
+#include <opm/material/constraintsolvers/DifferentCompositionFromFugacities.hpp>
 
 #include <opm/material/common/Valgrind.hpp>
 
@@ -144,6 +145,9 @@ public:
         for (unsigned phaseIdx = 0; phaseIdx < numPhases; ++phaseIdx) {
             if (phaseIdx == refPhaseIdx)
                 continue; // reference phase is already calculated
+
+            if (phaseIdx == FluidSystem::waterPhaseIdx)
+                continue;
 
             ComponentVector fugVec;
             for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {

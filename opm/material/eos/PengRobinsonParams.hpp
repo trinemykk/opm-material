@@ -47,14 +47,14 @@ public:
      * \brief Returns the attractive parameter 'a' of the
      *        Peng-Robinson fluid.
      */
-    Scalar a() const
+    Scalar a(int phaseIdx=0) const
     { return a_; }
 
     /*!
      * \brief Returns the repulsive parameter 'b' of the Peng-Robinson
      *        fluid.
      */
-    Scalar b() const
+    Scalar b(int phaseIdx=0) const
     { return b_; }
 
     /*!
@@ -83,9 +83,30 @@ public:
     void setB(Scalar value)
     { b_ = value; }
 
+    Scalar temperature(int phaseIdx = 0) const
+    { return temperature_; };
+
+    Scalar pressure(int phaseIdx = 0) const
+    { return pressure_; };
+
+    Scalar molarVolume(int phaseIdx = 0) const
+    { return molarVolume_; };
+
+    void setTemperature(Scalar v)
+    { temperature_ = v; };
+
+    void setPressure(Scalar v)
+    { pressure_ = v; };
+
+    void setMolarVolume(Scalar v)
+    { molarVolume_ = v; };
+
 protected:
     Scalar a_;
     Scalar b_;
+    Scalar temperature_;
+    Scalar pressure_;
+    Scalar molarVolume_;
 };
 
 } // namespace Opm

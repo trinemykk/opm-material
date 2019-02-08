@@ -52,9 +52,9 @@ class Spe5ParameterCache
 
     enum { numPhases = FluidSystem::numPhases };
 
-    enum { waterPhaseIdx = FluidSystem::waterPhaseIdx };
-    enum { oilPhaseIdx = FluidSystem::oilPhaseIdx };
-    enum { gasPhaseIdx = FluidSystem::gasPhaseIdx };
+    enum { waterPhaseIdx = FluidSystem::aqueousPhase };
+    enum { oilPhaseIdx = FluidSystem::oleicPhase };
+    enum { gasPhaseIdx = 99};
 
 public:
     //! The cached parameters for the oil phase
