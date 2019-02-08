@@ -66,13 +66,13 @@ public:
             //std::cout << f << " -> " << mutParams.fugacity(phaseIdx, i)/f << "\n";
             fluidState.setMoleFraction(phaseIdx,
                                        FluidSystem::OctaneIdx,
-                                       0.02);
+                                       1.0);
             fluidState.setMoleFraction(phaseIdx,
                                        FluidSystem::BrineIdx,
-                                       0.25);
+                                       0.0);
             fluidState.setMoleFraction(phaseIdx,
                                        FluidSystem::CO2Idx,
-                                       0.02);
+                                       0.0);
         }
         else
             assert(false);

@@ -89,19 +89,31 @@ public:
       * 4th edition, McGraw-Hill, 1987, pp. 42-44, 143-145
       */
     template <class FluidState, class Params, class LhsEval = typename FluidState::Scalar>
-    static LhsEval computeFugacityCoefficient(const FluidState& fs,
-                                              const Params& params,
+    static LhsEval computeFugacityCoefficient(const FluidState& fs2,
+                                              const Params& params2,
                                               unsigned phaseIdx,
                                               unsigned compIdx)
     {
+#if 1
+#warning HACK
+        auto fs = fs2;
+        auto params = params2;
+        fs.setMoleFraction(0, 0, 1.0);
+        fs.setMoleFraction(0, 1, 0.0);
+        fs.setMoleFraction(0, 2, 0.0);
+        params.updatePhase(fs, 0);
+#else
+        auto params = params2;
+        params.updatePhase(fs, phaseIdx);
+#endif
+
         // note that we normalize the component mole fractions, so
         // that their sum is 100%. This increases numerical stability
         // considerably if the fluid state is not physical.
         LhsEval Vm = params.molarVolume(phaseIdx);
 
         // Calculate b_i / b
-#warning HACK: pure instead of mixture
-        LhsEval bi_b = params.bPure(phaseIdx, compIdx) / params.bPure(phaseIdx, compIdx);
+        LhsEval bi_b = params.bPure(phaseIdx, compIdx) / params.b(phaseIdx);
 
         // Calculate the compressibility factor
         LhsEval RT = R*fs.temperature(phaseIdx);
@@ -109,16 +121,14 @@ public:
         LhsEval Z = p*Vm/RT; // compressibility factor
 
         // Calculate A^* and B^* (see: Reid, p. 42)
-#warning HACK: pure instead of mixture
-        LhsEval Astar = params.aPure(phaseIdx, compIdx);
-        LhsEval Bstar = params.bPure(phaseIdx, compIdx)*p/(RT);
+        LhsEval Astar = params.a(phaseIdx)*p/(RT*RT);
+        LhsEval Bstar = params.b(phaseIdx)*p/(RT);
 
         // calculate delta_i (see: Reid, p. 145)
         LhsEval sumMoleFractions = 0.0;
         for (unsigned compJIdx = 0; compJIdx < numComponents; ++compJIdx)
             sumMoleFractions += fs.moleFraction(phaseIdx, compJIdx);
-#warning HACK: pure instead of mixture
-        LhsEval deltai = 2*Opm::sqrt(params.aPure(phaseIdx, compIdx))/params.aPure(phaseIdx, compIdx);
+        LhsEval deltai = 2*Opm::sqrt(params.aPure(phaseIdx, compIdx))/params.a(phaseIdx);
         LhsEval tmp = 0;
         for (unsigned compJIdx = 0; compJIdx < numComponents; ++compJIdx) {
             tmp +=
@@ -152,6 +162,11 @@ public:
         //fugCoeff = Opm::max(1e-10, fugCoeff);
         ///////////
 
+        auto fugCoeffMix = fugCoeff;
+
+#if 1 // -> use fugacity coefficient of mixture
+        return fugCoeffMix;
+#else // -> use pure fugacity coefficient
         int comp2Idx = compIdx;
         compIdx = 0;
 
@@ -164,8 +179,7 @@ public:
         paramsPure.setMolarVolume(Opm::getValue(Vm2));
         auto fugCoeffPure = Opm::PengRobinson<LhsEval>::template computeFugacityCoeffient<LhsEval>(paramsPure);
 
-        if (comp2Idx == 1)
-            return 2*fugCoeffPure;
+        std::cout << fugCoeffMix << " vs: " << fugCoeffPure << "\n";
         return fugCoeffPure;
 
 
@@ -194,6 +208,7 @@ public:
         std::abort();
 #warning HACK
         return 0;//fugCoeffPure;
+#endif
 #endif
     }
 
