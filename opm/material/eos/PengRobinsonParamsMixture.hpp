@@ -98,13 +98,15 @@ public:
             Scalar pc = FluidSystem::criticalPressure(i);
             Scalar omega = FluidSystem::acentricFactor(i);
             Scalar Tr = temperature/FluidSystem::criticalTemperature(i);
+            Scalar Tc = FluidSystem::criticalTemperature(i);
             Scalar RTc = R*FluidSystem::criticalTemperature(i);
 
             Scalar f_omega;
 
             if (useSpe5Relations) {
-                if (omega < 0.49) f_omega = 0.37464  + omega*(1.54226 + omega*(-0.26992));
-                else              f_omega = 0.379642 + omega*(1.48503 + omega*(-0.164423 + omega*0.016666));
+                //if (omega < 0.49) f_omega = 0.37464  + omega*(1.54226 + omega*(-0.26992));
+                //else
+                f_omega = 0.379642 + omega*(1.48503 + omega*(-0.164423 + omega*0.016666));//use this
             }
             else
                 f_omega = 0.37464 + omega*(1.54226 - omega*0.26992);
@@ -176,7 +178,6 @@ public:
 
         Valgrind::CheckDefined(this->a());
         Valgrind::CheckDefined(this->b());
-
     }
 
     /*!
