@@ -28,6 +28,7 @@
 #define OPM_PENG_ROBINSON_MIXTURE_HPP
 
 #include "PengRobinson.hpp"
+#include "PengRobinsonParams.hpp"
 
 #include <opm/material/Constants.hpp>
 
@@ -42,7 +43,7 @@ template <class Scalar, class StaticParameters>
 class PengRobinsonMixture
 {
     enum { numComponents = StaticParameters::numComponents };
-    typedef ::Opm::PengRobinson<Scalar> PengRobinson;
+    typedef Opm::PengRobinson<Scalar> PengRobinson;
 
     // this class cannot be instantiated!
     PengRobinsonMixture() {}
@@ -99,7 +100,8 @@ public:
         LhsEval Vm = params.molarVolume(phaseIdx);
 
         // Calculate b_i / b
-        LhsEval bi_b = params.bPure(phaseIdx, compIdx) / params.b(phaseIdx);
+#warning HACK: pure instead of mixture
+        LhsEval bi_b = params.bPure(phaseIdx, compIdx) / params.bPure(phaseIdx, compIdx);
 
         // Calculate the compressibility factor
         LhsEval RT = R*fs.temperature(phaseIdx);
@@ -107,20 +109,22 @@ public:
         LhsEval Z = p*Vm/RT; // compressibility factor
 
         // Calculate A^* and B^* (see: Reid, p. 42)
-        LhsEval Astar = params.a(phaseIdx)*p/(RT*RT);
-        LhsEval Bstar = params.b(phaseIdx)*p/(RT);
+#warning HACK: pure instead of mixture
+        LhsEval Astar = params.aPure(phaseIdx, compIdx);
+        LhsEval Bstar = params.bPure(phaseIdx, compIdx)*p/(RT);
 
         // calculate delta_i (see: Reid, p. 145)
         LhsEval sumMoleFractions = 0.0;
         for (unsigned compJIdx = 0; compJIdx < numComponents; ++compJIdx)
             sumMoleFractions += fs.moleFraction(phaseIdx, compJIdx);
-        LhsEval deltai = 2*sqrt(params.aPure(phaseIdx, compIdx))/params.a(phaseIdx);
+#warning HACK: pure instead of mixture
+        LhsEval deltai = 2*Opm::sqrt(params.aPure(phaseIdx, compIdx))/params.aPure(phaseIdx, compIdx);
         LhsEval tmp = 0;
         for (unsigned compJIdx = 0; compJIdx < numComponents; ++compJIdx) {
             tmp +=
                 fs.moleFraction(phaseIdx, compJIdx)
                 / sumMoleFractions
-                * sqrt(params.aPure(phaseIdx, compJIdx))
+                * Opm::sqrt(params.aPure(phaseIdx, compJIdx))
                 * (1.0 - StaticParameters::interactionCoefficient(compIdx, compJIdx));
         };
         deltai *= tmp;
@@ -131,8 +135,8 @@ public:
         LhsEval expo =  Astar/(Bstar*std::sqrt(u*u - 4*w))*(bi_b - deltai);
 
         LhsEval fugCoeff =
-            exp(bi_b*(Z - 1))/max(1e-9, Z - Bstar) *
-            pow(base, expo);
+            Opm::exp(bi_b*(Z - 1))/Opm::max(1e-9, Z - Bstar) *
+            Opm::pow(base, expo);
 
         ////////
         // limit the fugacity coefficient to a reasonable range:
@@ -140,21 +144,63 @@ public:
         // on one side, we want the mole fraction to be at
         // least 10^-3 if the fugacity is at the current pressure
         //
-        fugCoeff = min(1e10, fugCoeff);
+        //fugCoeff = Opm::min(1e10, fugCoeff);
         //
         // on the other hand, if the mole fraction of the component is 100%, we want the
         // fugacity to be at least 10^-3 Pa
         //
-        fugCoeff = max(1e-10, fugCoeff);
+        //fugCoeff = Opm::max(1e-10, fugCoeff);
         ///////////
 
-        return fugCoeff;
+        int comp2Idx = compIdx;
+        compIdx = 0;
+
+        PengRobinsonParams<LhsEval> paramsPure;
+        paramsPure.setTemperature(Opm::getValue(fs.temperature(phaseIdx)));
+        paramsPure.setPressure(Opm::getValue(fs.pressure(phaseIdx)));
+        paramsPure.setA(Opm::getValue(params.aPure(phaseIdx, compIdx)));
+        paramsPure.setB(Opm::getValue(params.bPure(phaseIdx, compIdx)));
+        auto Vm2 = Opm::PengRobinson<LhsEval>::computeMolarVolume(fs, paramsPure, phaseIdx, false);
+        paramsPure.setMolarVolume(Opm::getValue(Vm2));
+        auto fugCoeffPure = Opm::PengRobinson<LhsEval>::template computeFugacityCoeffient<LhsEval>(paramsPure);
+
+        if (comp2Idx == 1)
+            return 2*fugCoeffPure;
+        return fugCoeffPure;
+
+
+#if 0
+        FluidState fs2(fs);
+        auto params2(params);
+        compIdx = 1;
+        for (int i = 0; i < 1000; ++i) {
+            Scalar p = 100e3 + (Scalar(i)/1000*1.9e6);
+
+            fs2.setPressure(phaseIdx, p);
+            params2.updatePhase(fs2, phaseIdx);
+
+            PengRobinsonParams<double> paramsPure;
+            paramsPure.setTemperature(Opm::getValue(fs2.temperature(phaseIdx)));
+            paramsPure.setPressure(Opm::getValue(fs2.pressure(phaseIdx)));
+            paramsPure.setA(Opm::getValue(params2.aPure(phaseIdx, compIdx)));
+            paramsPure.setB(Opm::getValue(params2.bPure(phaseIdx, compIdx)));
+            auto Vm2 = Opm::PengRobinson<double>::computeMolarVolume(fs2, paramsPure, phaseIdx, false);
+            paramsPure.setMolarVolume(Opm::getValue(Vm2));
+            auto fugCoeffPure = Opm::PengRobinson<double>::computeFugacityCoeffient<double>(paramsPure);
+
+            std::cerr << p << " " << fugCoeffPure*p << std::endl;
+        }
+
+        std::abort();
+#warning HACK
+        return 0;//fugCoeffPure;
+#endif
     }
 
 };
 
 template <class Scalar, class StaticParameters>
-const Scalar PengRobinsonMixture<Scalar, StaticParameters>::R = Constants<Scalar>::R;
+const Scalar PengRobinsonMixture<Scalar, StaticParameters>::R = Opm::Constants<Scalar>::R;
 template<class Scalar, class StaticParameters>
 const Scalar PengRobinsonMixture<Scalar, StaticParameters>::u = 2.0;
 template<class Scalar, class StaticParameters>
