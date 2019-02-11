@@ -247,15 +247,26 @@ protected:
         FluidState fluidState(fluidStateIn);
 
         // normalize composition of input fluid state
-#if 0
+#if 1
         Evaluation sumx = 0.0;
         for (int compIdx = 0; compIdx < numComponents; ++compIdx)
             sumx += fluidState.moleFraction(phaseIdx, compIdx);
         sumx = Opm::max(sumx, 1e-7);
 
-        for (int compIdx = 0; compIdx < numComponents; ++compIdx) {
-            Evaluation  xi = fluidState.moleFraction(phaseIdx, compIdx)/sumx;
-            fluidState.setMoleFraction(phaseIdx, compIdx, xi);
+        if (sumx < 0.9) {
+            sumx = 0.9/sumx;
+
+            for (int compIdx = 0; compIdx < numComponents; ++compIdx) {
+                Evaluation  xi = fluidState.moleFraction(phaseIdx, compIdx)/sumx;
+                fluidState.setMoleFraction(phaseIdx, compIdx, xi);
+            }
+
+            Evaluation sumx2 = 0.0;
+            for (int compIdx = 0; compIdx < numComponents; ++compIdx)
+                sumx2 += fluidState.moleFraction(phaseIdx, compIdx);
+
+            std::cout << "sumx2: " << sumx2 << "\n";
+
         }
 #endif
 
