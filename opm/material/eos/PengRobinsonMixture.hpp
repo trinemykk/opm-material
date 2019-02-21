@@ -108,7 +108,7 @@ public:
         params.updatePhase(fs, phaseIdx);
 #endif
 
-        std::cout << "C8: " << fs.moleFraction(0, 0) << " CO2: " << fs.moleFraction(0, 1) << " H2O: " << fs.moleFraction(0, 2) << "\n";
+        //std::cout << "C8: " << fs.moleFraction(0, 0) << " CO2: " << fs.moleFraction(0, 1) << " H2O: " << fs.moleFraction(0, 2) << "\n";
 
         // note that we normalize the component mole fractions, so
         // that their sum is 100%. This increases numerical stability
