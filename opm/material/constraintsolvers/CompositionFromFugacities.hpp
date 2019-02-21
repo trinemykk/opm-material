@@ -247,7 +247,7 @@ protected:
         FluidState fluidState(fluidStateIn);
 
         // normalize composition of input fluid state
-#if 1
+#if 0
         Evaluation sumx = 0.0;
         for (int compIdx = 0; compIdx < numComponents; ++compIdx)
             sumx += fluidState.moleFraction(phaseIdx, compIdx);

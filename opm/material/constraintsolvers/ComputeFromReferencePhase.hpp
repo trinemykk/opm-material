@@ -27,8 +27,7 @@
 #ifndef OPM_COMPUTE_FROM_REFERENCE_PHASE_HPP
 #define OPM_COMPUTE_FROM_REFERENCE_PHASE_HPP
 
-//#include <opm/material/constraintsolvers/CompositionFromFugacities.hpp>
-#include <opm/material/constraintsolvers/DifferentCompositionFromFugacities.hpp>
+#include <opm/material/constraintsolvers/CompositionFromFugacities.hpp>
 
 #include <opm/material/common/Valgrind.hpp>
 
@@ -146,9 +145,26 @@ public:
             if (phaseIdx == refPhaseIdx)
                 continue; // reference phase is already calculated
 
-            if (phaseIdx == FluidSystem::waterPhaseIdx)
-                continue;
+            if (phaseIdx == FluidSystem::waterPhaseIdx) {
+                for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+                    if (compIdx == FluidSystem::BrineIdx)
+                        fluidState.setMoleFraction(phaseIdx, compIdx, 0.99998);
+                    else
+                        fluidState.setMoleFraction(phaseIdx, compIdx, 0.00001);
 
+                    paramCache.updatePhase(fluidState, phaseIdx);
+                    paramCache.updateAll(fluidState);
+                    const Evaluation& rho = FluidSystem::density(fluidState, paramCache, phaseIdx);
+                    fluidState.setDensity(phaseIdx, rho);
+
+                    const Evaluation& phi = FluidSystem::fugacityCoefficient(fluidState, paramCache, phaseIdx, compIdx);
+                    fluidState.setFugacityCoefficient(phaseIdx, compIdx, phi);
+                    paramCache.updatePhase(fluidState_, phaseIdx);
+
+
+                }
+
+            } else {
             ComponentVector fugVec;
             for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
                 const auto& fug = fluidState.fugacity(refPhaseIdx, compIdx);
@@ -157,6 +173,7 @@ public:
 
             CompositionFromFugacities::solve(fluidState, paramCache, phaseIdx, fugVec);
 
+            }
             if (setViscosity)
                 fluidState.setViscosity(phaseIdx,
                                         FluidSystem::viscosity(fluidState,

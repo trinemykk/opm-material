@@ -61,7 +61,13 @@ public:
      * \brief The fugacity of a component in a phase [Pa]
      */
     Scalar fugacity(unsigned phaseIdx, unsigned compIdx) const
-    { return asImp_().pressure(phaseIdx)*fugacityCoefficient_[phaseIdx][compIdx]*asImp_().moleFraction(phaseIdx, compIdx); }
+    {
+#warning hack
+        if (phaseIdx == 1)
+            std::cout << compIdx << std::endl;
+
+        return asImp_().pressure(phaseIdx)*fugacityCoefficient_[phaseIdx][compIdx]*asImp_().moleFraction(phaseIdx, compIdx);
+    }
 
     /*!
      * \brief Set the fugacity of a component in a phase []
