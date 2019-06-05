@@ -116,21 +116,17 @@ public:
                 fs.setMoleFraction(phaseIdx, i, alpha*fs2.moleFraction(phaseIdx, i));
         }
 
+        /*
+#warning more of a HACK
+        fs.setMoleFraction(phaseIdx, 0, 0.0); // octane
+        fs.setMoleFraction(phaseIdx, 1, 0.0); // co2
+        fs.setMoleFraction(phaseIdx, 2, 0.95); // water
+        */
+
         auto params = params2;
         params.updatePhase(fs, phaseIdx);
 #endif
-
-
-#if 1
-#warning "hack for testing: it's nonlinear but definitely not Peng-Robinson!"
-        {
-            const auto& p = fs.pressure(phaseIdx);
-            return Opm::sqrt(p);
-        }
-#endif
-        
-        //std::cout << "C8: " << fs.moleFraction(0, 0) << " CO2: " << fs.moleFraction(0, 1) << " H2O: " << fs.moleFraction(0, 2) << "\n";
-
+     
         // note that we normalize the component mole fractions, so
         // that their sum is 100%. This increases numerical stability
         // considerably if the fluid state is not physical.
@@ -168,9 +164,16 @@ public:
             (2*Z + Bstar*(u - std::sqrt(u*u - 4*w)));
         LhsEval expo =  Astar/(Bstar*std::sqrt(u*u - 4*w))*(bi_b - deltai);
 
+        std::cout << "Z - Bstar:" << Z - Bstar << "\n";
+#if 1
         LhsEval fugCoeff =
             Opm::exp(bi_b*(Z - 1))/Opm::max(1e-9, Z - Bstar) *
             Opm::pow(base, expo);
+#else
+#warning HACK
+        LhsEval fugCoeff =
+            Opm::exp(bi_b*(Z - 1))/Opm::max(1e-9, Z - Bstar);
+#endif
 
         ////////
         // limit the fugacity coefficient to a reasonable range:
@@ -187,13 +190,10 @@ public:
         ///////////
 
         auto fugCoeffMix = fugCoeff;
-
+        
 #if 1 // -> use fugacity coefficient of mixture
         return fugCoeffMix;
 #else // -> use pure fugacity coefficient
-        int comp2Idx = compIdx;
-        compIdx = 0;
-
         PengRobinsonParams<LhsEval> paramsPure;
         paramsPure.setTemperature(Opm::getValue(fs.temperature(phaseIdx)));
         paramsPure.setPressure(Opm::getValue(fs.pressure(phaseIdx)));
@@ -203,36 +203,24 @@ public:
         paramsPure.setMolarVolume(Opm::getValue(Vm2));
         auto fugCoeffPure = Opm::PengRobinson<LhsEval>::template computeFugacityCoeffient<LhsEval>(paramsPure);
 
-        std::cout << fugCoeffMix << " vs: " << fugCoeffPure << "\n";
-        return fugCoeffPure;
-
-
-#if 0
-        FluidState fs2(fs);
-        auto params2(params);
-        compIdx = 1;
-        for (int i = 0; i < 1000; ++i) {
-            Scalar p = 100e3 + (Scalar(i)/1000*1.9e6);
-
-            fs2.setPressure(phaseIdx, p);
-            params2.updatePhase(fs2, phaseIdx);
-
-            PengRobinsonParams<double> paramsPure;
-            paramsPure.setTemperature(Opm::getValue(fs2.temperature(phaseIdx)));
-            paramsPure.setPressure(Opm::getValue(fs2.pressure(phaseIdx)));
-            paramsPure.setA(Opm::getValue(params2.aPure(phaseIdx, compIdx)));
-            paramsPure.setB(Opm::getValue(params2.bPure(phaseIdx, compIdx)));
-            auto Vm2 = Opm::PengRobinson<double>::computeMolarVolume(fs2, paramsPure, phaseIdx, false);
+        for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
+            PengRobinsonParams<LhsEval> paramsPure;
+            paramsPure.setTemperature(Opm::getValue(fs.temperature(phaseIdx)));
+            paramsPure.setPressure(Opm::getValue(fs.pressure(phaseIdx)));
+            paramsPure.setA(Opm::getValue(params.aPure(phaseIdx, compIdx)));
+            paramsPure.setB(Opm::getValue(params.bPure(phaseIdx, compIdx)));
+            auto Vm2 = Opm::PengRobinson<LhsEval>::computeMolarVolume(fs, paramsPure, phaseIdx, false);
             paramsPure.setMolarVolume(Opm::getValue(Vm2));
-            auto fugCoeffPure = Opm::PengRobinson<double>::computeFugacityCoeffient<double>(paramsPure);
+            auto fugCoeffPure = Opm::PengRobinson<LhsEval>::template computeFugacityCoeffient<LhsEval>(paramsPure);
 
-            std::cerr << p << " " << fugCoeffPure*p << std::endl;
+            std::cout << "fugCoeffPure_" << phaseIdx
+                      << "^" << compIdx << " = "
+                      << fugCoeffPure << "\n";
+            
         }
 
-        std::abort();
-#warning HACK
-        return 0;//fugCoeffPure;
-#endif
+        std::cout << fugCoeffMix << " vs: " << fugCoeffPure << "\n";
+        return fugCoeffPure;
 #endif
     }
 
