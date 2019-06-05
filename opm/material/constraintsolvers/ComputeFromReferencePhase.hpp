@@ -160,8 +160,6 @@ public:
                     const Evaluation& phi = FluidSystem::fugacityCoefficient(fluidState, paramCache, phaseIdx, compIdx);
                     fluidState.setFugacityCoefficient(phaseIdx, compIdx, phi);
                     paramCache.updatePhase(fluidState, phaseIdx);
-
-
                 }
 
             } else {
