@@ -98,7 +98,6 @@ public:
             Scalar pc = FluidSystem::criticalPressure(i);
             Scalar omega = FluidSystem::acentricFactor(i);
             Scalar Tr = temperature/FluidSystem::criticalTemperature(i);
-            Scalar Tc = FluidSystem::criticalTemperature(i);
             Scalar RTc = R*FluidSystem::criticalTemperature(i);
 
             Scalar f_omega;
