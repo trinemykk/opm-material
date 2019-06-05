@@ -103,11 +103,32 @@ public:
         fs.setMoleFraction(0, 2, 0.0);
         params.updatePhase(fs, 0);
 #else
+#warning also a HACK
         auto fs = fs2;
+        double sumx = 0.0;
+        for (int i = 0; i < FluidState::numComponents; ++i)
+            sumx += Opm::scalarValue(fs2.moleFraction(phaseIdx, i));
+        if (sumx < 0.95)  {
+            double alpha = 0.95/sumx;
+            std::cerr << "normalize: " << sumx
+                      << " alpha: " << alpha << "\n";
+            for (int i = 0; i < FluidState::numComponents; ++i)
+                fs.setMoleFraction(phaseIdx, i, alpha*fs2.moleFraction(phaseIdx, i));
+        }
+
         auto params = params2;
         params.updatePhase(fs, phaseIdx);
 #endif
 
+
+#if 1
+#warning "hack for testing: it's nonlinear but definitely not Peng-Robinson!"
+        {
+            const auto& p = fs.pressure(phaseIdx);
+            return Opm::sqrt(p);
+        }
+#endif
+        
         //std::cout << "C8: " << fs.moleFraction(0, 0) << " CO2: " << fs.moleFraction(0, 1) << " H2O: " << fs.moleFraction(0, 2) << "\n";
 
         // note that we normalize the component mole fractions, so

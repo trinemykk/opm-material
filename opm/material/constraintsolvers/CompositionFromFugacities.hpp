@@ -62,20 +62,12 @@ public:
             return;
 
         // Pure component fugacities
-        if (phaseIdx == FluidSystem::oilPhaseIdx) {
+        for (unsigned i = 0; i < numComponents; ++ i) {
             //std::cout << f << " -> " << mutParams.fugacity(phaseIdx, i)/f << "\n";
             fluidState.setMoleFraction(phaseIdx,
-                                       FluidSystem::OctaneIdx,
-                                       1.0);
-            fluidState.setMoleFraction(phaseIdx,
-                                       FluidSystem::BrineIdx,
-                                       0.0);
-            fluidState.setMoleFraction(phaseIdx,
-                                       FluidSystem::CO2Idx,
-                                       0.0);
+                                       i,
+                                       1.0/numComponents);
         }
-        else
-            assert(false);
     }
 
     /*!
@@ -97,9 +89,6 @@ public:
             return;
         }
 
-
-
-#if 1
         // save initial composition in case something goes wrong
         Dune::FieldVector<Evaluation, numComponents> xInit;
         for (unsigned i = 0; i < numComponents; ++i) {
@@ -120,19 +109,14 @@ public:
         paramCache.updatePhase(fluidState, phaseIdx);
 
         // maximum number of iterations
-        const int nMax = 151;
+        const int nMax = 25;
         for (int nIdx = 0; nIdx < nMax; ++nIdx) {
-            paramCache.updateAll(fluidState);
-
-            const Evaluation& rho = FluidSystem::density(fluidState, paramCache, phaseIdx);
-            fluidState.setDensity(phaseIdx, rho);
-
             // calculate Jacobian matrix and right hand side
             linearize_(J, b, fluidState, paramCache, phaseIdx, targetFug);
             Valgrind::CheckDefined(J);
             Valgrind::CheckDefined(b);
 
-#if 0
+            /*
             std::cout << FluidSystem::phaseName(phaseIdx) << "Phase composition: ";
             for (unsigned i = 0; i < FluidSystem::numComponents; ++i)
                 std::cout << fluidState.moleFraction(phaseIdx, i) << " ";
@@ -141,7 +125,7 @@ public:
             for (unsigned i = 0; i < FluidSystem::numComponents; ++i)
                 std::cout << fluidState.fugacityCoefficient(phaseIdx, i) << " ";
             std::cout << "\n";
-#endif
+            */
 
             // Solve J*x = b
             x = 0.0;
@@ -153,10 +137,10 @@ public:
 
             Valgrind::CheckDefined(x);
 
-#if 0
+            /*
             std::cout << FluidSystem::phaseName(phaseIdx) << "Phase composition: ";
             for (unsigned i = 0; i < FluidSystem::numComponents; ++i)
-                std::cout << fluidState.massFraction(phaseIdx, i) << " ";
+                std::cout << fluidState.moleFraction(phaseIdx, i) << " ";
             std::cout << "\n";
             std::cout << "J: " << J << "\n";
             std::cout << "rho: " << fluidState.density(phaseIdx) << "\n";
@@ -166,23 +150,15 @@ public:
             std::cout << "J: " << J << "\n";
 
             std::cout << "---------------------------\n";
-#endif
+            */
 
             // update the fluid composition. b is also used to store
             // the defect for the next iteration.
             Scalar relError = update_(fluidState, paramCache, x, b, phaseIdx, targetFug);
 
-            if (relError < 1e-10) {
-                paramCache.updatePhase(fluidState, phaseIdx);
+            if (relError < 1e-9) {
                 const Evaluation& rho = FluidSystem::density(fluidState, paramCache, phaseIdx);
                 fluidState.setDensity(phaseIdx, rho);
-
-                for (int i = 0; i < numComponents; ++i) {
-                    const Evaluation& phi = FluidSystem::fugacityCoefficient(fluidState, paramCache, phaseIdx, i);
-                    fluidState.setFugacityCoefficient(phaseIdx, i, phi);
-                }
-
-                //std::abort();
 
                 //std::cout << "num iterations: " << nIdx << "\n";
                 return;
@@ -196,7 +172,6 @@ public:
             << "}, {fug_t} = {" << targetFug << "}, p = " << fluidState.pressure(phaseIdx)
             << ", T = " << fluidState.temperature(phaseIdx);
         throw Opm::NumericalIssue(oss.str());
-#endif
     }
 
 
@@ -210,7 +185,6 @@ protected:
                                unsigned phaseIdx,
                                const ComponentVector& fugacities)
     {
-        paramCache.updatePhase(fluidState, phaseIdx);
         for (unsigned i = 0; i < numComponents; ++ i) {
             const Evaluation& phi = FluidSystem::fugacityCoefficient(fluidState,
                                                                      paramCache,
@@ -231,101 +205,76 @@ protected:
         return;
     }
 
-#warning HACK
-#if 1
     template <class FluidState>
-    static void linearize_(Dune::FieldMatrix<Evaluation, numComponents, numComponents>& J,
-                           Dune::FieldVector<Evaluation, numComponents>& defect,
-                           const FluidState& fluidStateIn,
-                           typename FluidSystem::template ParameterCache<typename FluidState::Scalar>& paramCache,
-                           unsigned phaseIdx,
-                           const ComponentVector& targetFug)
+    static Scalar linearize_(Dune::FieldMatrix<Evaluation, numComponents, numComponents>& J,
+                             Dune::FieldVector<Evaluation, numComponents>& defect,
+                             FluidState& fluidState,
+                             typename FluidSystem::template ParameterCache<typename FluidState::Scalar>& paramCache,
+                             unsigned phaseIdx,
+                             const ComponentVector& targetFug)
     {
         // reset jacobian
         J = 0;
 
-        FluidState fluidState(fluidStateIn);
+        Scalar absError = 0;
+        // calculate the defect (deviation of the current fugacities
+        // from the target fugacities)
+        for (unsigned i = 0; i < numComponents; ++ i) {
+            const Evaluation& phi = FluidSystem::fugacityCoefficient(fluidState,
+                                                          paramCache,
+                                                          phaseIdx,
+                                                          i);
+            const Evaluation& f = phi*fluidState.pressure(phaseIdx)*fluidState.moleFraction(phaseIdx, i);
+            fluidState.setFugacityCoefficient(phaseIdx, i, phi);
 
-        // normalize composition of input fluid state
-#if 0
-        Evaluation sumx = 0.0;
-        for (int compIdx = 0; compIdx < numComponents; ++compIdx)
-            sumx += fluidState.moleFraction(phaseIdx, compIdx);
-        sumx = Opm::max(sumx, 1e-7);
-
-        if (sumx < 0.9) {
-            sumx = 0.9/sumx;
-
-            for (int compIdx = 0; compIdx < numComponents; ++compIdx) {
-                Evaluation  xi = fluidState.moleFraction(phaseIdx, compIdx)/sumx;
-                fluidState.setMoleFraction(phaseIdx, compIdx, xi);
-            }
-
-            Evaluation sumx2 = 0.0;
-            for (int compIdx = 0; compIdx < numComponents; ++compIdx)
-                sumx2 += fluidState.moleFraction(phaseIdx, compIdx);
-
-            std::cout << "sumx2: " << sumx2 << "\n";
-
+            defect[i] = targetFug[i] - f;
+            absError = std::max(absError, std::abs(Opm::scalarValue(defect[i])));
         }
-#endif
 
         // assemble jacobian matrix of the constraints for the composition
-        typedef Opm::DenseAd::Evaluation<Evaluation, numComponents> InnerEval;
-        typename FluidSystem::template ParameterCache<InnerEval> myParamCache;
-        typedef Opm::CompositionalFluidState<InnerEval, FluidSystem> CFS;
-        CFS myFluidState;
-        myFluidState.setPressure(phaseIdx, fluidState.pressure(phaseIdx));
-        myFluidState.setTemperature(fluidState.temperature(phaseIdx));
-        for (int compIdx = 0; compIdx < numComponents; ++compIdx) {
-            myFluidState.setMoleFraction(phaseIdx, compIdx, fluidState.moleFraction(phaseIdx, compIdx));
-        }
-        myParamCache.updatePhase(myFluidState, phaseIdx);
+        static const Scalar eps = std::numeric_limits<Scalar>::epsilon()*1e6;
         for (unsigned i = 0; i < numComponents; ++ i) {
+            ////////
+            // approximately calculate partial derivatives of the
+            // fugacity defect of all components in regard to the mole
+            // fraction of the i-th component. This is done via
+            // forward differences
+
             // deviate the mole fraction of the i-th component
-            myFluidState.setMoleFraction(phaseIdx, i, Opm::variable<InnerEval>(fluidState.moleFraction(phaseIdx, i), i));
-            myParamCache.updateAll(myFluidState);
-            //myFluidState.setDensity(phaseIdx, FluidSystem::density(myFluidState, myParamCache, phaseIdx));
+            Evaluation xI = fluidState.moleFraction(phaseIdx, i);
+            fluidState.setMoleFraction(phaseIdx, i, xI + eps);
+            paramCache.updateSingleMoleFraction(fluidState, phaseIdx, i);
 
             // compute new defect and derivative for all component
             // fugacities
             for (unsigned j = 0; j < numComponents; ++j) {
                 // compute the j-th component's fugacity coefficient ...
-                const auto& phi = FluidSystem::fugacityCoefficient(myFluidState, myParamCache, phaseIdx, j);
+                const Evaluation& phi = FluidSystem::fugacityCoefficient(fluidState,
+                                                                         paramCache,
+                                                                         phaseIdx,
+                                                                         j);
                 // ... and its fugacity ...
-                const auto& f =
+                const Evaluation& f =
                     phi *
-                    myFluidState.pressure(phaseIdx) *
-                    myFluidState.moleFraction(phaseIdx, j);
-
-#if 0
-#warning HACK
-                if (j == i)
-                    assert(std::abs(f.derivative(i) - phi.value()*fluidState.pressure(phaseIdx)) < 1e-2);
-#endif
+                    fluidState.pressure(phaseIdx) *
+                    fluidState.moleFraction(phaseIdx, j);
+                // as well as the defect for this fugacity
+                const Evaluation& defJPlusEps = targetFug[j] - f;
 
                 // use forward differences to calculate the defect's
                 // derivative
-                J[j][i] = - f.derivative(j);
+                J[j][i] = (defJPlusEps - defect[j])/eps;
             }
 
-            myFluidState.setMoleFraction(phaseIdx, i, fluidState.moleFraction(phaseIdx, i));
-
-            // compute the j-th component's fugacity coefficient ...
-            const auto& phi = FluidSystem::fugacityCoefficient(myFluidState, myParamCache, phaseIdx, i);
-            // ... and its fugacity ...
-            const auto& f =
-                phi *
-                myFluidState.pressure(phaseIdx) *
-                myFluidState.moleFraction(phaseIdx, i);
-
-            defect[i] = targetFug[i] - f.value();
-
+            // reset composition to original value
+            fluidState.setMoleFraction(phaseIdx, i, xI);
+            paramCache.updateSingleMoleFraction(fluidState, phaseIdx, i);
 
             // end forward differences
             ////////
-
         }
+
+        return absError;
     }
 
     template <class FluidState>
@@ -336,15 +285,38 @@ protected:
                           unsigned phaseIdx,
                           const Dune::FieldVector<Evaluation, numComponents>& targetFug)
     {
-        // change composition
-        Scalar relError = 0.0;
+        // store original composition and calculate relative error
+        Dune::FieldVector<Evaluation, numComponents> origComp;
+        Scalar relError = 0;
+        Evaluation sumDelta = 0.0;
+        Evaluation sumx = 0.0;
         for (unsigned i = 0; i < numComponents; ++i) {
-            Evaluation newx = fluidState.moleFraction(phaseIdx, i) - x[i];
-            fluidState.setMoleFraction(phaseIdx, i, newx);
-     //       if (targetFug[i] == 0)
-     //           std::cout << targetFug[i] << std::endl;
+            origComp[i] = fluidState.moleFraction(phaseIdx, i);
+            relError = std::max(relError, std::abs(Opm::scalarValue(x[i])));
 
-            relError = std::max(relError, std::abs(Opm::getValue(x[i])));
+            sumx += Opm::abs(fluidState.moleFraction(phaseIdx, i));
+            sumDelta += Opm::abs(x[i]);
+        }
+
+        // chop update to at most 20% change in composition
+        const Scalar maxDelta = 0.2;
+        if (sumDelta > maxDelta)
+            x /= (sumDelta/maxDelta);
+
+        // change composition
+        for (unsigned i = 0; i < numComponents; ++i) {
+            Evaluation newx = origComp[i] - x[i];
+            // only allow negative mole fractions if the target fugacity is negative
+            if (targetFug[i] > 0)
+                newx = Opm::max(0.0, newx);
+            // only allow positive mole fractions if the target fugacity is positive
+            else if (targetFug[i] < 0)
+                newx = Opm::min(0.0, newx);
+            // if the target fugacity is zero, the mole fraction must also be zero
+            else
+                newx = 0;
+
+            fluidState.setMoleFraction(phaseIdx, i, newx);
         }
 
         paramCache.updateComposition(fluidState, phaseIdx);
@@ -368,7 +340,6 @@ protected:
         };
         return result;
     }
-#endif
 }; // namespace Opm
 
 } // end namespace Opm
