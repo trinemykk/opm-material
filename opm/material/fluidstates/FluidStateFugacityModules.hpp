@@ -63,8 +63,6 @@ public:
     Scalar fugacity(unsigned phaseIdx, unsigned compIdx) const
     {
 #warning hack
-        if (phaseIdx == 1)
-            std::cout << compIdx << std::endl;
 
         return asImp_().pressure(phaseIdx)*fugacityCoefficient_[phaseIdx][compIdx]*asImp_().moleFraction(phaseIdx, compIdx);
     }

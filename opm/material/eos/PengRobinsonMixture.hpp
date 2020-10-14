@@ -164,7 +164,6 @@ public:
             (2*Z + Bstar*(u - std::sqrt(u*u - 4*w)));
         LhsEval expo =  Astar/(Bstar*std::sqrt(u*u - 4*w))*(bi_b - deltai);
 
-        std::cout << "Z - Bstar:" << Z - Bstar << "\n";
 #if 1
         LhsEval fugCoeff =
             Opm::exp(bi_b*(Z - 1))/Opm::max(1e-9, Z - Bstar) *
@@ -212,10 +211,6 @@ public:
             auto Vm2 = Opm::PengRobinson<LhsEval>::computeMolarVolume(fs, paramsPure, phaseIdx, false);
             paramsPure.setMolarVolume(Opm::getValue(Vm2));
             auto fugCoeffPure = Opm::PengRobinson<LhsEval>::template computeFugacityCoeffient<LhsEval>(paramsPure);
-
-            std::cout << "fugCoeffPure_" << phaseIdx
-                      << "^" << compIdx << " = "
-                      << fugCoeffPure << "\n";
             
         }
 
