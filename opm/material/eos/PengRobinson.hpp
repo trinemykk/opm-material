@@ -187,8 +187,6 @@ public:
         Valgrind::CheckDefined(a3);
         Valgrind::CheckDefined(a4);
         int numSol = invertCubicPolynomial(Z, a1, a2, a3, a4);
-        //std::cout << numSol << std::endl;
-
         if (numSol == 3) {
             // the EOS has three intersections with the pressure,
             // i.e. the molar volume of gas is the largest one and the
@@ -202,7 +200,30 @@ public:
             // the EOS only has one intersection with the pressure,
             // for the other phase, we take the extremum of the EOS
             // with the largest distance from the intersection.
-            Vm = Opm::max(1e-7, Z[0]*RT/p);
+            Evaluation VmCubic = Z[0]*RT/p;
+            Vm = VmCubic;
+
+            // find the extrema (if they are present)
+            // Evaluation Vmin, Vmax, pmin, pmax;
+            // if (findExtrema_(Vmin, Vmax,
+            //                  pmin, pmax,
+            //                  a, b, T))
+            // {
+            //     if (isGasPhase)
+            //         Vm = std::max(Vmax, VmCubic);
+            //     else {
+            //         if (Vmin > 0)
+            //             Vm = std::min(Vmin, VmCubic);
+            //         else
+            //             Vm = VmCubic;
+            //     }
+            // }
+            // else {
+            //     // the EOS does not exhibit any physically meaningful
+            //     // extrema, and the fluid is critical...
+            //     Vm = VmCubic;
+            //     handleCriticalFluid_(Vm, fs, params, phaseIdx, isGasPhase);
+            // }
         }
 
         Valgrind::CheckDefined(Vm);
@@ -230,30 +251,17 @@ public:
 
         const Evaluation& RT = R*T;
         const Evaluation& Z = p*Vm/RT;
-        const Evaluation& Astar = p*params.a() / (RT*RT);
         const Evaluation& Bstar = p*params.b() / RT;
 
-        static const Scalar delta1 = -(std::sqrt(2.0) + 1);
-        static const Scalar delta2 = std::sqrt(2.0) - 1;
+        const Evaluation& tmp =
+            (Vm + params.b()*(1 + std::sqrt(2))) /
+            (Vm + params.b()*(1 - std::sqrt(2)));
+        const Evaluation& expo = - params.a()/(RT * 2 * params.b() * std::sqrt(2));
+        const Evaluation& fugCoeff =
+            Opm::exp(Z - 1) / (Z - Bstar) *
+            Opm::pow(tmp, expo);
 
-//        const Evaluation& tmp =
-//            (Vm + params.b()*(1 + std::sqrt(2))) /
-//            (Vm + params.b()*(1 - std::sqrt(2)));
-//        const Evaluation& expo = - params.a()/(RT * 2 * params.b() * std::sqrt(2));
-//        const Evaluation& fugCoeff =
-//            Opm::exp(Z - 1) / (Z - Bstar) *
-//            Opm::pow(tmp, expo);
-        assert(Z > Bstar);
-        assert(Z > delta1*Bstar);
-        assert(Z > delta2*Bstar);
-
-        auto lnFoverP =
-                Z - 1
-                - Opm::log(Z - Bstar)
-                - (Astar/((delta2 - delta1)*Bstar)
-                   *Opm::log((Z - delta1*Bstar)/(Z - delta2*Bstar)));
-
-        return Opm::exp(lnFoverP);
+        return fugCoeff;
     }
 
     /*!
