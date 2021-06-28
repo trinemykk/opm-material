@@ -147,7 +147,7 @@ public:
 
             if (phaseIdx == FluidSystem::waterPhaseIdx) {
                 for (unsigned compIdx = 0; compIdx < numComponents; ++compIdx) {
-                    if (compIdx == FluidSystem::BrineIdx)
+                    if (compIdx == FluidSystem::Comp2Idx)
                         fluidState.setMoleFraction(phaseIdx, compIdx, 0.99998);
                     else
                         fluidState.setMoleFraction(phaseIdx, compIdx, 0.00001);
